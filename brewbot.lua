@@ -1,15 +1,19 @@
 -- Brew Bot, a CO2 detecting fermentation monitor with the ESP8266
--- Author: Albert Santoni
+-- Copyright (c) 2016 Albert Santoni
 -- Licensed under the MIT License
 
 function setupWifi()
 
+    -- Plain old connect-to-an-AP WiFi mode.
     wifi.setmode(wifi.STATION)
-        
-    -- wifi.sta.eventMonReg(wifi.STA_CONNECTING, function() printCorner("Connecting to \n" .. ssid) end)
-    -- wifi.sta.eventMonReg(wifi.STA_FAIL, function() printCorner("Wifi failed :(") end)
+    
+    -- Event handlers
+    wifi.sta.eventMonReg(wifi.STA_CONNECTING, function() printCorner("Connecting to \n" .. ssid) end)
+    wifi.sta.eventMonReg(wifi.STA_FAIL, function() printCorner("Wifi failed :(") end)
 
+    -- IP address assigned event handler
     wifi.sta.eventMonReg(wifi.STA_GOTIP, function() 
+    
         print("Got an IP. Starting inet services...") 
         printCorner(wifi.sta.getip())
             
@@ -62,10 +66,11 @@ influxdb_auth_header = ""
 -- it for the CO2 sensor!
 function startTelnetServer()
 
-    srv=net.createServer(net.TCP,180)
+    srv = net.createServer(net.TCP,180)
+    
     srv:listen(23,function(c) 
       c:on("receive",function(c,d) 
-          -- switch to telnet service
+          -- Switch to telnet service
           node.output(function(s)
             if c ~= nil then c:send(s) end
           end,0)
@@ -76,13 +81,16 @@ function startTelnetServer()
           c:on("disconnection",function(c)
             node.output(nil)
           end)
-          print("Welcome to BrewBot")
+          print("Welcome to Brew Bot")
           node.input("\r\n")
           return
       end) 
     end)
 end
 
+
+-- Starts a webserver that provides a super basic read-only interface
+-- displaying the CO2 concentration.
 function startWebServer()
   local srv = net.createServer(net.TCP, 30)
     srv:listen(80,function(conn)
@@ -96,8 +104,6 @@ function startWebServer()
             httpResponse = httpResponse .. "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\r\n"
             httpResponse = httpResponse .. gas_conc .. " PPM\r\n"
             conn:send(httpResponse)
-            -- conn:send("HTTP/1.1 200 OK\r\n\r\nConnection: close\r\n\r\n<h1> Hello: " .. temperature .. " degrees Celsius</h1>\r\n\r\n")
-            -- conn:send("<h1> Hello: " .. temperature .. " degrees Celsius</h1>")
         end)
         conn:on("sent", function(conn)
             conn:close()
@@ -105,13 +111,13 @@ function startWebServer()
     end)
 end
 
+
 -- Receive data on the UART, from the CO2 sensor
 function initializeMHZ19UART()
 
--- FIXME: The 5V output from the Weemos can't supply
---        enough current to the MH-Z19 - switch to 
---        using an external power supply, split the 5V power,
---        and power the Weemos via its 5V pin.
+-- Note: The 5V output from the Weemos can't supply
+--       enough current to the MH-Z19 - so you'll need to provide 
+--       external power to it.
 
     -- uart.alt(1)  -- Use GPIO13 and GPIO15 (pins D7 and D8 on Weemos)
     uart.setup(0, 9600, 8, uart.PARITY_NONE, uart.STOPBITS_1, 0)
@@ -128,9 +134,12 @@ function initializeMHZ19UART()
     --uart.write(0, 0x00) -- Byte 7 - unused
     --uart.write(0, 0x79) -- "Check value" checksum?
     
-    -- TODO: When I print to the uart, the response comes back
-    --       via the USB serial.... hmmm...
-
+    -- NOTE: If you're using the serial console while your MH-Z19 is hooked
+    -- up to the UART, anything the MH-Z19 sends back to you will be dumped
+    -- to your serial console, which probably isn't what you want. 
+    -- (There's only 1 UART in the ESP8266.)
+    
+    -- Receive data on the UART, from the CO2 sensor
     uart.on("data", 9, function(data) 
         raw_data = data
 
@@ -144,29 +153,10 @@ function initializeMHZ19UART()
     end, 0)
     
     uart.write(0, 0xFF, 0x01, 0x86,0x00,0x00,0x00,0x00,0x00, 0x79)
-    
-end
-
--- Receive data on the UART, from the CO2 sensor
-function bind_uart()
-
-    uart.on("data", 9, function(data) 
-        raw_data = data
-
-        if string.byte(data, 1) == 0xFF and
-           string.byte(data, 2) == 0x86 then
-             high_level_conc = string.byte(data, 3)
-             low_level_conc = string.byte(data, 4)
-             gas_conc = high_level_conc * 256 + low_level_conc
-        end
-        foo = data
-    end, 0)
-    
-    uart.write(0, 0xFF, 0x01, 0x86,0x00,0x00,0x00,0x00,0x00, 0x79)
-    
     -- Warning: Just running uart.on("data") to unregister causes a crash?
+
 end
- 
+
  
 -- Poll the CO2 sensor via the UART interface.
 function startCO2PollTimer()
@@ -279,6 +269,7 @@ function draw24HourGraph()
     end)
 end
 
+
 -- Main loop 
 function displayLoop()
 
@@ -301,12 +292,6 @@ function displayLoop()
         end
         
         mode = (mode + 1) % numModes
-    end)
-end
-
-function startScreenDrawLoop()
-    tmr.alarm(3, 5000, tmr.ALARM_AUTO, function()
-        printCentered(gas_conc .. " PPM")
     end)
 end
 
@@ -382,7 +367,6 @@ function startup()
 
     readConfiguration()
     initializeMHZ19UART()
-    -- bind_uart()
     startCO2PollTimer()
     
     init_spi_display()

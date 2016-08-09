@@ -1,6 +1,7 @@
 # Brew Bot
 ## An ESP8266-based Kombucha Fermentation Monitor
 
+
 ### Features
 * CO2 concentration sensor (MH-Z19, 0-2000 PPM calibrated)
 * OLED screen (SSD1331 96x64)
@@ -8,6 +9,7 @@
 * Simple web interface with mDNS (http://brewbot.local on your LAN)
 * Data logging to an InfluxDB server (viewable with Grafana)
 * 24-hour, 7-day, and 14-day graphs pulled from InfluxDB queries
+
 
 ### About
 
@@ -27,4 +29,19 @@ Some simple graphs are also presented directly on the device's OLED screen, rota
 * The 5V output on the ESP8266 has a very low current limit, so be careful when trying to power peripherals off of it.
 * The chip only has one UART, so if you start using the RX/TX pins to interface with a peripheral, you're going to lose your serial console. As a workaround, you can implement a telnet interface (see my code), or just disable that peripheral when you need an interactive serial console.
 * Be careful with the size of HTTP responses. I had to use pagination and make multiple GET requests to InfluxDB to get that graph data because otherwise I'd run out of memory (only 32 kB of heap).
+
+
+
+### License
+
+The MIT License (MIT)
+Copyright (c) 2016 Albert Santoni
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
 

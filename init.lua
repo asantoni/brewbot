@@ -1,5 +1,5 @@
 -- Brew Bot, a CO2 detecting fermentation monitor with the ESP8266
--- Author: Albert Santoni
+-- Copyright (c) 2016 Albert Santoni
 -- Licensed under the MIT License
 
 

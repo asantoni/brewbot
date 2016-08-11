@@ -13,19 +13,19 @@
 
 ### About
 
-**Brew Bot** was my excuse to build a cool IoT thingy with the ESP8266 chip, which is a $2 system-on-a-chip with WiFi. I used the NodeMCU firmware, which provides a embedded Lua runtime with an event-driven, asynchronous programming model similar to NodeJS. (This makes network programming a little easier and less error prone.)
+**Brew Bot** was my excuse to build a cool IoT thingy with the ESP8266 chip, which is a $2 system-on-a-chip with WiFi. I used the NodeMCU firmware, which provides an embedded Lua runtime with an event-driven, asynchronous programming model similar to NodeJS. (This makes network programming a little easier and less error prone.)
 
 My first revision used a [MG811 CO2 gas sensor](http://sandboxelectronics.com/files/SEN-000007/MG811.pdf), but after a lot of head scratching, I realized my sensor was DOA. I switched to the MH-Z19 and I'd wholeheartedly recommend using that instead, as it's easier to interface with anyways.
 
-Data is logged to an InfluxDB server, which can be viewed from Grafana. Grafana is a visualization web app that provides an easy GUI for building dashboards and interactive plots. I use it to view CO2 levels over time.
+Data is logged to an InfluxDB server, which can be viewed from Grafana. Grafana is a visualization web app that provides an easy GUI for building dashboards and interactive plots. I use it to monitor CO2 levels over time.
 
-Some simple graphs are also presented directly on the device's OLED screen, rotating every 15 seconds. Rather than computing these on-device, the calculated data is obtained via an InfluxDB query for simplicity, consistency, and easy tweaking. (eg. If I want to plot the derivative instead, it's a tiny adjustment.)
+Some simple graphs are also presented directly on the device's OLED screen, rotating every 15 seconds. Rather than computing these on-device, the calculated data is obtained via an InfluxDB query for simplicity, consistency, and easy tweaking. (eg. If I want to plot the derivative of my data instead, it's just a tiny adjustment.)
 
 
 
 ### ESP8266 Tips
 
-* There are many subtly incorrect examples about how to make a webserver out there - Use callbacks diligently!
+* There are many subtly incorrect examples about how to make a webserver with NodeMCU out there - Use callbacks diligently!
 * The 5V output on the ESP8266 has a very low current limit, so be careful when trying to power peripherals off of it.
 * The chip only has one UART, so if you start using the RX/TX pins to interface with a peripheral, you're going to lose your serial console. As a workaround, you can implement a telnet interface (see my code), or just disable that peripheral when you need an interactive serial console.
 * Be careful with the size of HTTP responses. I had to use pagination and make multiple GET requests to InfluxDB to get that graph data because otherwise I'd run out of memory (only 32 kB of heap).

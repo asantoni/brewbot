@@ -20,7 +20,7 @@ function setupWifi()
         -- Telnet disabled for security by default:
         --startTelnetServer()
         startWebServer()
-        startInfluxClient()
+        -- startInfluxClient()
     
         -- Make brewbot.local work in your web browser!
         mdns.register("brewbot", {description='Kombucha CO2 Sensor',
@@ -102,7 +102,7 @@ function startWebServer()
             httpResponse = httpResponse .. "Content-type: text/html\r\n"
             httpResponse = httpResponse .. "Connection: close\r\n\r\n"
             httpResponse = httpResponse .. "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\r\n"
-            httpResponse = httpResponse .. gas_conc .. " PPM\r\n"
+            httpResponse = httpResponse .. gas_conc .. " PPM<br>"
             conn:send(httpResponse)
         end)
         conn:on("sent", function(conn)
@@ -139,19 +139,23 @@ function initializeMHZ19UART()
     -- to your serial console, which probably isn't what you want. 
     -- (There's only 1 UART in the ESP8266.)
     
-    -- Receive data on the UART, from the CO2 sensor
-    uart.on("data", 9, function(data) 
-        raw_data = data
 
-        if string.byte(data, 1) == 0xFF and
-           string.byte(data, 2) == 0x86 then
-             high_level_conc = string.byte(data, 3)
-             low_level_conc = string.byte(data, 4)
-             gas_conc = high_level_conc * 256 + low_level_conc
-        end
-        foo = data
+    -- Read any buffered UART data the first time, so that we're sure it's flushed.
+    uart.on("data", 0, function(data) -- 9, function(data)
+ 
+        -- Receive data on the UART, from the CO2 sensor (9 bytes = 1 message)
+        uart.on("data", 9, function(data) 
+            raw_data = data
+            if string.byte(data, 1) == 0xFF and
+               string.byte(data, 2) == 0x86 then
+                 high_level_conc = string.byte(data, 3)
+                 low_level_conc = string.byte(data, 4)
+                 gas_conc = high_level_conc * 256 + low_level_conc
+            end
+        end, 0)
     end, 0)
-    
+
+    -- Request a CO2 concentration reading:
     uart.write(0, 0xFF, 0x01, 0x86,0x00,0x00,0x00,0x00,0x00, 0x79)
     -- Warning: Just running uart.on("data") to unregister causes a crash?
 
@@ -168,17 +172,20 @@ end
 
 
 -- Log our last CO2 concentration reading to InfluxDB every few seconds.
-function startInfluxClient()
-    tmr.alarm(2, 10000, tmr.ALARM_AUTO, function()
-        -- Using task.post here for safety
-        node.task.post(node.task.LOW_PRIORITY, function() 
-            http.post(influxdb_post_url, influxdb_auth_header, 'co2_concentration,room=livingroom value=' .. gas_conc, 
-                function(code, data) 
-                    if code ~= 204 then
-                        printCorner("Influx: " .. code) -- data
-                    end 
-            end)
-        end)
+function logDataToInfluxDB(callback)
+
+    -- This should not be executed cooperatively with any other HTTP requests. Only one TCP client allowed at a time maybe?
+    http.post(influxdb_post_url, influxdb_auth_header, 'co2_concentration,room=livingroom value=' .. gas_conc, 
+        function(code, data) 
+            if code ~= 204 and code ~= 200 then
+                printBottom("Influx: " .. code) -- data
+                -- print(code, data)
+            end
+            if callback ~= nil then
+                node.task.post(node.task.LOW_PRIORITY, function()
+                    callback()
+                end)
+            end
     end)
 end
 
@@ -239,6 +246,15 @@ function printCorner(string)
     disp:print(string)
 end
 
+-- Prints to the bottom-left corner of the screen.
+-- @param string String to draw on the screen.
+function printBottom(string)
+    local strWidth = disp:getStrWidth(string)
+    local fontAscent = disp:getFontAscent()
+    disp:setPrintPos(0, disp:getHeight())
+    disp:print(string)
+end
+
 -- Reads your configuration from secrets.lua
 function readConfiguration()
     require("secrets")
@@ -271,28 +287,34 @@ end
 
 
 -- Main loop 
-function displayLoop()
+function mainLoop()
 
-    mode = 0;
-    local numModes = 4;
+    local NUM_MODES = 4
+    local mode = 0
 
     disp:clearScreen()
     printCentered(gas_conc .. " PPM")
-            
+
     tmr.alarm(3, 15000, tmr.ALARM_AUTO, function()
         if mode == 0 then
             disp:clearScreen()
             printCentered(gas_conc .. " PPM")
+            logDataToInfluxDB(function() 
+                draw24HourGraph()
+            end)
         elseif mode == 1 then 
-            draw14DayGraph() 
+            draw24HourGraph()
         elseif mode == 2 then
             draw7DayGraph()
         elseif mode == 3 then 
-            draw24HourGraph()
+            draw14DayGraph() 
         end
         
-        mode = (mode + 1) % numModes
+        printCorner(gas_conc .. " PPM")
+        
+        mode = (mode + 1) % NUM_MODES
     end)
+
 end
 
 
@@ -308,7 +330,8 @@ function fetchHistoricalData(url, offset, finishedCallback)
    local CO2_MAX_CONCENTRATION = 2000.0
    
    -- 14 days * 24 hours / 4 hours per data point = 84
-   http.get(url .. "OFFSET%20" .. offset, influxdb_auth_header, 
+
+   http.get(url .. "%20OFFSET%20" .. offset, influxdb_auth_header, 
         function(code, data) 
             if code == 200 then
                             
@@ -347,6 +370,7 @@ function fetchHistoricalData(url, offset, finishedCallback)
                end
             else
                 -- print(code, data)
+                -- printCentered("Influx query error\n" .. code)
                 finishedCallback()
             end
     end)
@@ -374,7 +398,7 @@ function startup()
     -- Webserver + Influx client are started when we get an IP. See this function:
     setupWifi()
 
-    displayLoop()
+    mainLoop()
 
 end
 
